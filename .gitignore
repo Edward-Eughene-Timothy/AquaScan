@@ -1,0 +1,60 @@
+# Python & Virtual Environments
+my_env/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Android & Gradle Build Artifacts
+.gradle/
+build/
+*/build/
+app/build/
+*.apk
+*.aar
+local.properties
+.navigation/
+
+# IDE Configuration
+.idea/
+*.iml
+.vscode/
+
+# OS / System Junk
+.DS_Store
+Thumbs.db
+
+# Large raw archive files
+*.zip
+*.tar.gz
+*.7z
+
+# ML Models and Weights
+*.pt
+*.onnx
+models/
+mobile/models/
+mobile/android/app/src/main/assets/best.onnx
+
+# Training Run Outputs and Logs
+runs/
+*.csv
+*.png
+*.jpg
+
+# Raw Annotations & Datasets
+annotation_raw/
+microplastic_yolo/
+
+# ML Models and Weights
+*.pt
+*.onnx
+models/
+mobile/models/
+runs/
+
+# Datasets and Raw Annotations
+annotation_raw/
+microplastic_yolo/
+
+# Exceptions
+!mobile/android/app/src/main/assets/best.onnx
