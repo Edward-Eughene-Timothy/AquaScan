@@ -1,4 +1,4 @@
-package com.mirai.microplasticdetector
+package com.mirai.microplasticdetector.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
@@ -38,6 +38,7 @@ import com.mirai.microplasticdetector.ui.theme.Navy
 import com.mirai.microplasticdetector.ui.theme.SuccessGreen
 import androidx.compose.ui.tooling.preview.Preview
 import com.mirai.microplasticdetector.ui.theme.MicroplasticDetectorTheme
+import com.mirai.microplasticdetector.R
 
 @Composable
 fun HomeScreen(

@@ -17,6 +17,19 @@ import com.mirai.microplasticdetector.ui.theme.MicroplasticDetectorTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.mirai.microplasticdetector.ml.YOLO11Detector
+import com.mirai.microplasticdetector.models.AnalysisSession
+import com.mirai.microplasticdetector.models.DetectionResult
+import com.mirai.microplasticdetector.ui.AnalysisHistoryScreen
+import com.mirai.microplasticdetector.ui.AnalysisReportPreview
+import com.mirai.microplasticdetector.ui.DetectionScreen
+import com.mirai.microplasticdetector.ui.HomeScreen
+import com.mirai.microplasticdetector.ui.ImageCaptureScreen
+import com.mirai.microplasticdetector.ui.PreparationScreen
+import com.mirai.microplasticdetector.ui.SamplingScreen
+import com.mirai.microplasticdetector.ui.AnalysisReportDetailScreen
+import com.mirai.microplasticdetector.ui.AnalysisResultsScreen
+
 
 class MainActivity : ComponentActivity() {
     private lateinit var yoloDetector: YOLO11Detector
@@ -35,18 +48,21 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf<AnalysisSession?>(null)
                 }
 
+                var selectedReport by remember {
+                    mutableStateOf<AnalysisReportPreview?>(null)
+                }
+
                 NavHost(
                     navController = navController,
                     startDestination = "home"
                 ) {
-
                     composable("home") {
                         HomeScreen(
                             onBeginAnalysis = {
                                 navController.navigate("sampling")
                             },
                             onShowReport = {
-                                // Report screen connection
+                                navController.navigate("analysis_history")
                             }
                         )
                     }
@@ -85,7 +101,6 @@ class MainActivity : ComponentActivity() {
                                     navController.popBackStack()
                                 },
                                 onContinue = { imageUri ->
-                                    // Reset detection result when a new image is captured
                                     currentSession = currentSession?.copy(
                                         imageUri = imageUri,
                                         detectionResult = null
@@ -107,7 +122,6 @@ class MainActivity : ComponentActivity() {
                                 detectionResult = session.detectionResult,
                                 isAnalyzing = analysisStarted,
                                 onBack = {
-                                    // Clear stale detection state on back navigation
                                     currentSession = currentSession?.copy(
                                         detectionResult = null
                                     )
@@ -116,7 +130,6 @@ class MainActivity : ComponentActivity() {
                                 onRunAnalysis = {
                                     if (!analysisStarted) {
                                         analysisStarted = true
-
                                         val imageUri = session.imageUri
 
                                         if (imageUri != null) {
@@ -124,18 +137,10 @@ class MainActivity : ComponentActivity() {
                                                 try {
                                                     val bitmap = withContext(Dispatchers.IO) {
                                                         when (imageUri.scheme) {
-                                                            "content" ->
-                                                                contentResolver
-                                                                    .openInputStream(imageUri)
-                                                                    ?.use {
-                                                                        BitmapFactory.decodeStream(it)
-                                                                    }
-
-                                                            "file" ->
-                                                                BitmapFactory.decodeFile(
-                                                                    imageUri.path
-                                                                )
-
+                                                            "content" -> contentResolver.openInputStream(imageUri)?.use {
+                                                                BitmapFactory.decodeStream(it)
+                                                            }
+                                                            "file" -> BitmapFactory.decodeFile(imageUri.path)
                                                             else -> null
                                                         }
                                                     }
@@ -151,7 +156,6 @@ class MainActivity : ComponentActivity() {
                                                             0.0
                                                         }
 
-// Group detections by polymer name (e.g., {"Nylon": 2, "PE": 1})
                                                         val polymerCounts = detections.groupBy { it.className }
                                                             .mapValues { it.value.size }
 
@@ -166,14 +170,12 @@ class MainActivity : ComponentActivity() {
                                                             detectionResult = result
                                                         )
                                                     }
-
                                                 } catch (e: Exception) {
                                                     e.printStackTrace()
                                                 } finally {
                                                     analysisStarted = false
                                                 }
                                             }
-
                                         } else {
                                             analysisStarted = false
                                         }
@@ -192,15 +194,45 @@ class MainActivity : ComponentActivity() {
                                 AnalysisResultsScreen(
                                     session = session,
                                     detectionResult = result,
-                                    imageUri = session.imageUri, // Pass the image URI here!
+                                    imageUri = session.imageUri,
                                     onBack = {
                                         navController.popBackStack()
                                     },
+                                    onSaveReport = {
+                                        // TODO: Connect Room Database persistence here
+                                        navController.navigate("analysis_history")
+                                    },
                                     onContinue = {
-                                        // Next stage connection
+                                        // Next stage workflow hook
                                     }
                                 )
                             }
+                        }
+                    }
+
+                    composable("analysis_history") {
+                        AnalysisHistoryScreen(
+                            onBack = {
+                                navController.popBackStack()
+                            },
+                            onBeginAnalysis = {
+                                navController.navigate("sampling")
+                            },
+                            onReportClick = { report ->
+                                selectedReport = report
+                                navController.navigate("analysis_report_detail")
+                            }
+                        )
+                    }
+
+                    composable("analysis_report_detail") {
+                        selectedReport?.let { report ->
+                            AnalysisReportDetailScreen(
+                                report = report,
+                                onBack = {
+                                    navController.popBackStack()
+                                }
+                            )
                         }
                     }
                 }

@@ -1,4 +1,4 @@
-package com.mirai.microplasticdetector
+package com.mirai.microplasticdetector.ml
 
 import android.content.Context
 import android.graphics.Bitmap

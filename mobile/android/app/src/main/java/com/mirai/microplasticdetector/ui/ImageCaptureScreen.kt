@@ -1,4 +1,4 @@
-package com.mirai.microplasticdetector
+package com.mirai.microplasticdetector.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import java.io.File
+import com.mirai.microplasticdetector.models.AnalysisSession
 
 @Composable
 fun ImageCaptureScreen(

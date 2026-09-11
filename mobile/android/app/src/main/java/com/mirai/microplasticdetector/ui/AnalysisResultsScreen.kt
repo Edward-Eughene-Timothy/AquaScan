@@ -1,4 +1,4 @@
-package com.mirai.microplasticdetector
+package com.mirai.microplasticdetector.ui
 
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -46,6 +46,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mirai.microplasticdetector.models.AnalysisSession
+import com.mirai.microplasticdetector.models.DetectionResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -55,6 +57,7 @@ fun AnalysisResultsScreen(
     detectionResult: DetectionResult,
     imageUri: Uri?,
     onBack: () -> Unit,
+    onSaveReport: () -> Unit,
     onContinue: () -> Unit
 ) {
 
@@ -237,7 +240,7 @@ fun AnalysisResultsScreen(
                 }
 
                 Text(
-                    text = "YOLOv11",
+                    text = "AI DETECTION",
                     color = cyan,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
@@ -247,7 +250,7 @@ fun AnalysisResultsScreen(
             Spacer(modifier = Modifier.height(15.dp))
 
             // ------------------------------------------------
-            // IMAGE RESULT AREA WITH BOUNDING BOX OVERLAY
+            // IMAGE RESULT AREA
             // ------------------------------------------------
 
             var imageBitmap by remember {
@@ -255,20 +258,16 @@ fun AnalysisResultsScreen(
             }
 
             LaunchedEffect(imageUri) {
+
                 if (imageUri != null) {
+
                     imageBitmap = withContext(Dispatchers.IO) {
-                        try {
-                            when (imageUri.scheme) {
-                                "content" -> context.contentResolver.openInputStream(imageUri)?.use {
-                                    BitmapFactory.decodeStream(it)
-                                }
-                                "file" -> BitmapFactory.decodeFile(imageUri.path)
-                                else -> null
+
+                        context.contentResolver
+                            .openInputStream(imageUri)
+                            ?.use { inputStream ->
+                                BitmapFactory.decodeStream(inputStream)
                             }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                            null
-                        }
                     }
                 }
             }
@@ -291,62 +290,103 @@ fun AnalysisResultsScreen(
 
                 imageBitmap?.let { bitmap ->
 
-                    // Captured Image
-                    Image(
+                    // ---------------------------------------------
+                    // ACTUAL CAPTURED IMAGE
+                    // ---------------------------------------------
+
+                    androidx.compose.foundation.Image(
                         bitmap = bitmap.asImageBitmap(),
                         contentDescription = "Analyzed microscopic image",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit
                     )
 
-                    // Bounding Box Overlay
+                    // ---------------------------------------------
+                    // DETECTION BOXES
+                    // ---------------------------------------------
+
                     Canvas(
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        val originalWidth = bitmap.width.toFloat()
-                        val originalHeight = bitmap.height.toFloat()
 
-                        val originalXScale = originalWidth / 640f
-                        val originalYScale = originalHeight / 640f
+                        val originalWidth =
+                            bitmap.width.toFloat()
 
-                        val displayScale = minOf(
-                            size.width / originalWidth,
-                            size.height / originalHeight
-                        )
+                        val originalHeight =
+                            bitmap.height.toFloat()
 
-                        val displayedWidth = originalWidth * displayScale
-                        val displayedHeight = originalHeight * displayScale
+                        // YOLO input was 640 x 640
+                        val originalXScale =
+                            originalWidth / 640f
 
-                        val offsetX = (size.width - displayedWidth) / 2f
-                        val offsetY = (size.height - displayedHeight) / 2f
+                        val originalYScale =
+                            originalHeight / 640f
+
+                        // Match ContentScale.Fit
+                        val displayScale =
+                            minOf(
+                                size.width / originalWidth,
+                                size.height / originalHeight
+                            )
+
+                        val displayedWidth =
+                            originalWidth * displayScale
+
+                        val displayedHeight =
+                            originalHeight * displayScale
+
+                        val offsetX =
+                            (size.width - displayedWidth) / 2f
+
+                        val offsetY =
+                            (size.height - displayedHeight) / 2f
 
                         detectionResult.detections.forEach { detection ->
-                            val originalX1 = detection.x1 * originalXScale
-                            val originalY1 = detection.y1 * originalYScale
-                            val originalX2 = detection.x2 * originalXScale
-                            val originalY2 = detection.y2 * originalYScale
 
-                            val left = offsetX + originalX1 * displayScale
-                            val top = offsetY + originalY1 * displayScale
-                            val right = offsetX + originalX2 * displayScale
-                            val bottom = offsetY + originalY2 * displayScale
+                            val originalX1 =
+                                detection.x1 * originalXScale
+
+                            val originalY1 =
+                                detection.y1 * originalYScale
+
+                            val originalX2 =
+                                detection.x2 * originalXScale
+
+                            val originalY2 =
+                                detection.y2 * originalYScale
+
+                            val left =
+                                offsetX +
+                                        originalX1 * displayScale
+
+                            val top =
+                                offsetY +
+                                        originalY1 * displayScale
+
+                            val right =
+                                offsetX +
+                                        originalX2 * displayScale
+
+                            val bottom =
+                                offsetY +
+                                        originalY2 * displayScale
 
                             drawRect(
                                 color = teal,
-                                topLeft = Offset(left, top),
-                                size = Size(right - left, bottom - top),
-                                style = Stroke(width = 2.dp.toPx())
+                                topLeft = Offset(
+                                    left,
+                                    top
+                                ),
+                                size = Size(
+                                    right - left,
+                                    bottom - top
+                                ),
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = 2.dp.toPx()
+                                )
                             )
                         }
                     }
-                } ?: run {
-                    Text(
-                        text = "DETECTION VISUALIZATION",
-                        color = white,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp
-                    )
                 }
             }
 
@@ -362,6 +402,7 @@ fun AnalysisResultsScreen(
             ) {
 
                 // OBJECT COUNT
+
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -403,6 +444,7 @@ fun AnalysisResultsScreen(
                 }
 
                 // CONFIDENCE
+
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -430,7 +472,10 @@ fun AnalysisResultsScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = String.format("%.1f%%", detectionResult.averageConfidence),
+                        text = String.format(
+                            "%.1f%%",
+                            detectionResult.averageConfidence
+                        ),
                         color = teal,
                         fontSize = 30.sp,
                         fontWeight = FontWeight.Bold
@@ -476,9 +521,17 @@ fun AnalysisResultsScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                val materials = listOf("ABS", "Nylon", "PE", "PET", "PS", "PVC")
+                val materials = listOf(
+                    "ABS",
+                    "Nylon",
+                    "PE",
+                    "PET",
+                    "PS",
+                    "PVC"
+                )
 
                 materials.forEach { material ->
+
                     val count = materialCounts[material] ?: 0
 
                     Row(
@@ -497,7 +550,9 @@ fun AnalysisResultsScreen(
                                 )
                         )
 
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(
+                            modifier = Modifier.width(10.dp)
+                        )
 
                         Text(
                             text = material,
@@ -511,7 +566,11 @@ fun AnalysisResultsScreen(
                             text = "$count detected",
                             color = if (count > 0) teal else mutedText,
                             fontSize = 10.sp,
-                            fontWeight = if (count > 0) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (count > 0) {
+                                FontWeight.Bold
+                            } else {
+                                FontWeight.Normal
+                            }
                         )
                     }
                 }
@@ -571,7 +630,39 @@ fun AnalysisResultsScreen(
             Spacer(modifier = Modifier.height(15.dp))
 
             // ------------------------------------------------
-            // CONTINUE
+            // SAVE REPORT BUTTON
+            // ------------------------------------------------
+
+            Button(
+                onClick = onSaveReport,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(57.dp)
+                    .border(
+                        width = 1.dp,
+                        color = cyan.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(16.dp)
+                    ),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = cyan
+                )
+            ) {
+
+                Text(
+                    text = "SAVE ANALYSIS REPORT",
+                    color = cyan,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // ------------------------------------------------
+            // CONTINUE BUTTON
             // ------------------------------------------------
 
             Button(
@@ -614,7 +705,38 @@ fun AnalysisResultsScreen(
 }
 
 // ============================================================
-// HELPER COMPOSABLES
+// RESULT MARKER
+// ============================================================
+
+@Composable
+fun ResultMarker() {
+
+    val teal = Color(0xFF00EFA3)
+
+    Box(
+        modifier = Modifier
+            .size(27.dp)
+            .border(
+                width = 1.dp,
+                color = teal.copy(alpha = 0.75f),
+                shape = RoundedCornerShape(5.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+
+        Box(
+            modifier = Modifier
+                .size(5.dp)
+                .background(
+                    teal,
+                    CircleShape
+                )
+        )
+    }
+}
+
+// ============================================================
+// SUMMARY ROW
 // ============================================================
 
 @Composable

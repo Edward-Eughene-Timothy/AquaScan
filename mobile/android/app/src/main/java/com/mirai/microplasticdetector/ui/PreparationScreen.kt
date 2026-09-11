@@ -1,4 +1,4 @@
-package com.mirai.microplasticdetector
+package com.mirai.microplasticdetector.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mirai.microplasticdetector.models.AnalysisSession
 
 @Composable
 fun PreparationScreen(
