@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.google.gson.Gson
 import com.mirai.microplasticdetector.data.AnalysisReportEntity
 import com.mirai.microplasticdetector.data.AppDatabase
 import com.mirai.microplasticdetector.ml.YOLO11Detector
@@ -202,6 +203,7 @@ class MainActivity : ComponentActivity() {
                                     onSaveReport = {
                                         lifecycleScope.launch(Dispatchers.IO) {
                                             val polymers = result.polymerCounts
+                                            val jsonDetections = Gson().toJson(result.detections)
 
                                             val entity = AnalysisReportEntity(
                                                 reportCode = "RPT-${System.currentTimeMillis().toString().takeLast(4)}",
@@ -217,7 +219,8 @@ class MainActivity : ComponentActivity() {
                                                 countPET = polymers["PET"] ?: 0,
                                                 countPS = polymers["PS"] ?: 0,
                                                 countPVC = polymers["PVC"] ?: 0,
-                                                imageUriString = session.imageUri?.toString()
+                                                imageUriString = session.imageUri?.toString(),
+                                                detectionsJson = jsonDetections
                                             )
 
                                             reportDao.insertReport(entity)

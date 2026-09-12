@@ -5,21 +5,24 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities =[AnalysisReportEntity::class], version = 1, exportSchema = false)
-abstract class AppDatabase : RoomDatabase(){
+@Database(entities = [AnalysisReportEntity::class], version = 2, exportSchema = false)
+abstract class AppDatabase : RoomDatabase() {
     abstract fun analysisReportDao(): AnalysisReportDao
-    companion object{
-        @Volatile
-        private var INSTANCE: AppDatabase?=null
 
-        fun getDatabase(context:Context): AppDatabase{
-            return INSTANCE ?: synchronized(this){
-                val instance =Room.databaseBuilder(
+    companion object {
+        @Volatile
+        private var INSTANCE: AppDatabase? = null
+
+        fun getDatabase(context: Context): AppDatabase {
+            return INSTANCE ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "aquascan_database"
-                ).build()
-                INSTANCE=instance
+                )
+                    .fallbackToDestructiveMigration() // Wipes old test DB schema safely on version bump
+                    .build()
+                INSTANCE = instance
                 instance
             }
         }

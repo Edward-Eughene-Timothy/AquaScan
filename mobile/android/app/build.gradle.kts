@@ -63,7 +63,7 @@ dependencies {
     implementation(libs.onnxruntime.android)
 
     implementation("androidx.exifinterface:exifinterface:1.3.7")
-
+    implementation("com.google.code.gson:gson:2.10.1")
     val roomVersion = "2.7.0-alpha12"
 
     implementation("androidx.room:room-runtime:$roomVersion")

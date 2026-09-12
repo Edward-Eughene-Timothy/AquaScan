@@ -3,6 +3,7 @@ package com.mirai.microplasticdetector.ui
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,9 +35,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -44,7 +48,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.exifinterface.media.ExifInterface
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.mirai.microplasticdetector.data.AnalysisReportEntity
+import com.mirai.microplasticdetector.ml.Detection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -76,9 +83,22 @@ fun AnalysisReportDetailScreen(
         "PVC" to report.countPVC
     )
 
+    // Deserialize detections JSON string back to List<Detection>
+    val detections: List<Detection> = remember(report.detectionsJson) {
+        if (!report.detectionsJson.isNullOrEmpty()) {
+            try {
+                val type = object : TypeToken<List<Detection>>() {}.type
+                Gson().fromJson(report.detectionsJson, type) ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+    }
+
     var imageBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
 
-    // Load actual image from saved Uri String and apply EXIF orientation correction
     LaunchedEffect(report.imageUriString) {
         if (!report.imageUriString.isNullOrEmpty()) {
             imageBitmap = withContext(Dispatchers.IO) {
@@ -253,7 +273,7 @@ fun AnalysisReportDetailScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            // SEPARATE DEDICATED COLLECTION NOTES CARD
+            // COLLECTION NOTES CARD
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -294,7 +314,7 @@ fun AnalysisReportDetailScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            // IMAGE VISUALIZATION (UPDATED CONTAINER TO 315.DP HEIGHT AND FLUSH CROP)
+            // IMAGE VISUALIZATION WITH BOUNDING BOX OVERLAY
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -328,6 +348,45 @@ fun AnalysisReportDetailScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
+
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val bitmap = imageBitmap!!
+                            val originalWidth = bitmap.width.toFloat()
+                            val originalHeight = bitmap.height.toFloat()
+
+                            val originalXScale = originalWidth / 640f
+                            val originalYScale = originalHeight / 640f
+
+                            val displayScale = maxOf(
+                                size.width / originalWidth,
+                                size.height / originalHeight
+                            )
+
+                            val displayedWidth = originalWidth * displayScale
+                            val displayedHeight = originalHeight * displayScale
+
+                            val offsetX = (size.width - displayedWidth) / 2f
+                            val offsetY = (size.height - displayedHeight) / 2f
+
+                            detections.forEach { detection ->
+                                val originalX1 = detection.x1 * originalXScale
+                                val originalY1 = detection.y1 * originalYScale
+                                val originalX2 = detection.x2 * originalXScale
+                                val originalY2 = detection.y2 * originalYScale
+
+                                val left = offsetX + originalX1 * displayScale
+                                val top = offsetY + originalY1 * displayScale
+                                val right = offsetX + originalX2 * displayScale
+                                val bottom = offsetY + originalY2 * displayScale
+
+                                drawRect(
+                                    color = teal,
+                                    topLeft = Offset(left, top),
+                                    size = Size(right - left, bottom - top),
+                                    style = Stroke(width = 2.dp.toPx())
+                                )
+                            }
+                        }
                     } else {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(

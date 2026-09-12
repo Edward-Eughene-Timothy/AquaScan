@@ -242,7 +242,7 @@ fun AnalysisResultsScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            // IMAGE RESULT AREA (UPDATED HEIGHT TO 315.DP TO MATCH IMAGE CAPTURE SCREEN)
+            // IMAGE RESULT AREA
             var imageBitmap by remember {
                 mutableStateOf<Bitmap?>(null)
             }
