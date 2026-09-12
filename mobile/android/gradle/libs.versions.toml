@@ -11,6 +11,7 @@ composeBom = "2026.02.01"
 navigationCompose = "2.9.7"
 cameraX = "1.5.1"
 onnxRuntime = "1.22.0"
+ksp = "2.2.10-1.0.31"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -37,4 +38,4 @@ onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

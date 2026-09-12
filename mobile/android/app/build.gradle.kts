@@ -1,30 +1,33 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-
+    id("com.google.devtools.ksp")
 }
 
 android {
     namespace = "com.mirai.microplasticdetector"
-    compileSdk {
-        version = release(37)
-    }
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.mirai.microplasticdetector"
         minSdk = 26
-        targetSdk = 37
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Use android.sourceSets to properly hook up KSP generated sources under AGP's built-in Kotlin
+    sourceSets {
+        getByName("main") {
+            java.srcDirs("build/generated/ksp/main/kotlin")
+        }
+    }
+
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            isMinifyEnabled = false
         }
     }
     compileOptions {
@@ -37,7 +40,6 @@ android {
 }
 
 dependencies {
-
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
@@ -60,4 +62,11 @@ dependencies {
     implementation(libs.androidx.camera.view)
     implementation(libs.onnxruntime.android)
 
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+
+    val roomVersion = "2.7.0-alpha12"
+
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
 }

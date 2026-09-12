@@ -1,6 +1,5 @@
 package com.mirai.microplasticdetector.ui
 
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,21 +30,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-data class AnalysisReportPreview(
-    val reportCode: String,
-    val sampleId: String,
-    val source: String,
-    val volumeMl: Int,
-    val objectCount: Int,
-    val confidence: Double
-)
+import com.mirai.microplasticdetector.data.AnalysisReportEntity
+import java.util.Locale
 
 @Composable
 fun AnalysisHistoryScreen(
+    reports: List<AnalysisReportEntity>,
     onBack: () -> Unit,
     onBeginAnalysis: () -> Unit,
-    onReportClick: (AnalysisReportPreview) -> Unit
+    onReportClick: (AnalysisReportEntity) -> Unit
 ) {
     val backgroundTop = Color(0xFF031827)
     val backgroundBottom = Color(0xFF051F31)
@@ -55,17 +48,6 @@ fun AnalysisHistoryScreen(
     val teal = Color(0xFF00EFA3)
     val white = Color.White
     val mutedText = Color(0xFF8EA6B8)
-
-    val reports = listOf(
-        AnalysisReportPreview(
-            reportCode = "RPT-001",
-            sampleId = "SAMPLE-001",
-            source = "River Water",
-            volumeMl = 500,
-            objectCount = 34,
-            confidence = 60.4
-        )
-    )
 
     Box(
         modifier = Modifier
@@ -256,7 +238,7 @@ fun AnalysisHistoryScreen(
 
 @Composable
 fun AnalysisReportCard(
-    report: AnalysisReportPreview,
+    report: AnalysisReportEntity,
     onClick: () -> Unit
 ) {
     val cardColor = Color(0xFF0A1B2B)
@@ -321,7 +303,7 @@ fun AnalysisReportCard(
             ReportCardValue(label = "OBJECTS", value = report.objectCount.toString(), modifier = Modifier.weight(1f))
             ReportCardValue(
                 label = "CONFIDENCE",
-                value = String.format("%.1f%%", report.confidence),
+                value = String.format(Locale.getDefault(), "%.1f%%", report.averageConfidence),
                 modifier = Modifier.weight(1f)
             )
         }

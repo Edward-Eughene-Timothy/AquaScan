@@ -1,6 +1,8 @@
 package com.mirai.microplasticdetector.ui
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -32,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -43,13 +46,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.exifinterface.media.ExifInterface
 import com.mirai.microplasticdetector.models.AnalysisSession
 import com.mirai.microplasticdetector.models.DetectionResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 @Composable
 fun AnalysisResultsScreen(
@@ -60,7 +64,6 @@ fun AnalysisResultsScreen(
     onSaveReport: () -> Unit,
     onContinue: () -> Unit
 ) {
-
     val context = LocalContext.current
 
     val backgroundTop = Color(0xFF031827)
@@ -101,10 +104,7 @@ fun AnalysisResultsScreen(
                 )
         ) {
 
-            // ------------------------------------------------
-            // TOP BAR + STAGE NUMBER
-            // ------------------------------------------------
-
+            // TOP BAR
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -158,10 +158,6 @@ fun AnalysisResultsScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // ------------------------------------------------
-            // WORKFLOW PROGRESS
-            // ------------------------------------------------
-
             WorkflowProgress(
                 currentStage = 5
             )
@@ -186,10 +182,7 @@ fun AnalysisResultsScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // ------------------------------------------------
             // RESULT STATUS
-            // ------------------------------------------------
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -249,25 +242,47 @@ fun AnalysisResultsScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            // ------------------------------------------------
-            // IMAGE RESULT AREA
-            // ------------------------------------------------
-
+            // IMAGE RESULT AREA (WITH EXIF ROTATION & CROP MATCHING)
             var imageBitmap by remember {
-                mutableStateOf<android.graphics.Bitmap?>(null)
+                mutableStateOf<Bitmap?>(null)
             }
 
             LaunchedEffect(imageUri) {
-
                 if (imageUri != null) {
-
                     imageBitmap = withContext(Dispatchers.IO) {
+                        try {
+                            val inputStream = context.contentResolver.openInputStream(imageUri)
+                            val rawBitmap = inputStream?.use { BitmapFactory.decodeStream(it) }
 
-                        context.contentResolver
-                            .openInputStream(imageUri)
-                            ?.use { inputStream ->
-                                BitmapFactory.decodeStream(inputStream)
-                            }
+                            if (rawBitmap != null) {
+                                val exifStream = context.contentResolver.openInputStream(imageUri)
+                                val orientation = exifStream?.use { stream ->
+                                    val exif = ExifInterface(stream)
+                                    exif.getAttributeInt(
+                                        ExifInterface.TAG_ORIENTATION,
+                                        ExifInterface.ORIENTATION_NORMAL
+                                    )
+                                } ?: ExifInterface.ORIENTATION_NORMAL
+
+                                val matrix = Matrix()
+                                when (orientation) {
+                                    ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+                                    ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+                                    ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+                                }
+
+                                if (orientation != ExifInterface.ORIENTATION_NORMAL && orientation != ExifInterface.ORIENTATION_UNDEFINED) {
+                                    Bitmap.createBitmap(
+                                        rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true
+                                    )
+                                } else {
+                                    rawBitmap
+                                }
+                            } else null
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            null
+                        }
                     }
                 }
             }
@@ -276,10 +291,8 @@ fun AnalysisResultsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(245.dp)
-                    .background(
-                        Color(0xFF020A12),
-                        RoundedCornerShape(20.dp)
-                    )
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF020A12))
                     .border(
                         1.dp,
                         cyan.copy(alpha = 0.2f),
@@ -290,100 +303,51 @@ fun AnalysisResultsScreen(
 
                 imageBitmap?.let { bitmap ->
 
-                    // ---------------------------------------------
-                    // ACTUAL CAPTURED IMAGE
-                    // ---------------------------------------------
-
-                    androidx.compose.foundation.Image(
+                    Image(
                         bitmap = bitmap.asImageBitmap(),
                         contentDescription = "Analyzed microscopic image",
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
+                        contentScale = ContentScale.Crop
                     )
-
-                    // ---------------------------------------------
-                    // DETECTION BOXES
-                    // ---------------------------------------------
 
                     Canvas(
                         modifier = Modifier.fillMaxSize()
                     ) {
 
-                        val originalWidth =
-                            bitmap.width.toFloat()
+                        val originalWidth = bitmap.width.toFloat()
+                        val originalHeight = bitmap.height.toFloat()
 
-                        val originalHeight =
-                            bitmap.height.toFloat()
+                        val originalXScale = originalWidth / 640f
+                        val originalYScale = originalHeight / 640f
 
-                        // YOLO input was 640 x 640
-                        val originalXScale =
-                            originalWidth / 640f
+                        val displayScale = maxOf(
+                            size.width / originalWidth,
+                            size.height / originalHeight
+                        )
 
-                        val originalYScale =
-                            originalHeight / 640f
+                        val displayedWidth = originalWidth * displayScale
+                        val displayedHeight = originalHeight * displayScale
 
-                        // Match ContentScale.Fit
-                        val displayScale =
-                            minOf(
-                                size.width / originalWidth,
-                                size.height / originalHeight
-                            )
-
-                        val displayedWidth =
-                            originalWidth * displayScale
-
-                        val displayedHeight =
-                            originalHeight * displayScale
-
-                        val offsetX =
-                            (size.width - displayedWidth) / 2f
-
-                        val offsetY =
-                            (size.height - displayedHeight) / 2f
+                        val offsetX = (size.width - displayedWidth) / 2f
+                        val offsetY = (size.height - displayedHeight) / 2f
 
                         detectionResult.detections.forEach { detection ->
 
-                            val originalX1 =
-                                detection.x1 * originalXScale
+                            val originalX1 = detection.x1 * originalXScale
+                            val originalY1 = detection.y1 * originalYScale
+                            val originalX2 = detection.x2 * originalXScale
+                            val originalY2 = detection.y2 * originalYScale
 
-                            val originalY1 =
-                                detection.y1 * originalYScale
-
-                            val originalX2 =
-                                detection.x2 * originalXScale
-
-                            val originalY2 =
-                                detection.y2 * originalYScale
-
-                            val left =
-                                offsetX +
-                                        originalX1 * displayScale
-
-                            val top =
-                                offsetY +
-                                        originalY1 * displayScale
-
-                            val right =
-                                offsetX +
-                                        originalX2 * displayScale
-
-                            val bottom =
-                                offsetY +
-                                        originalY2 * displayScale
+                            val left = offsetX + originalX1 * displayScale
+                            val top = offsetY + originalY1 * displayScale
+                            val right = offsetX + originalX2 * displayScale
+                            val bottom = offsetY + originalY2 * displayScale
 
                             drawRect(
                                 color = teal,
-                                topLeft = Offset(
-                                    left,
-                                    top
-                                ),
-                                size = Size(
-                                    right - left,
-                                    bottom - top
-                                ),
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                    width = 2.dp.toPx()
-                                )
+                                topLeft = Offset(left, top),
+                                size = Size(right - left, bottom - top),
+                                style = Stroke(width = 2.dp.toPx())
                             )
                         }
                     }
@@ -392,17 +356,13 @@ fun AnalysisResultsScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            // ------------------------------------------------
             // MAIN METRICS
-            // ------------------------------------------------
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
 
                 // OBJECT COUNT
-
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -444,7 +404,6 @@ fun AnalysisResultsScreen(
                 }
 
                 // CONFIDENCE
-
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -473,6 +432,7 @@ fun AnalysisResultsScreen(
 
                     Text(
                         text = String.format(
+                            Locale.getDefault(),
                             "%.1f%%",
                             detectionResult.averageConfidence
                         ),
@@ -492,10 +452,7 @@ fun AnalysisResultsScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            // ------------------------------------------------
             // MATERIAL BREAKDOWN
-            // ------------------------------------------------
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -578,10 +535,7 @@ fun AnalysisResultsScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            // ------------------------------------------------
             // SUMMARY CARD
-            // ------------------------------------------------
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -629,10 +583,7 @@ fun AnalysisResultsScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            // ------------------------------------------------
             // SAVE REPORT BUTTON
-            // ------------------------------------------------
-
             Button(
                 onClick = onSaveReport,
                 modifier = Modifier
@@ -661,10 +612,7 @@ fun AnalysisResultsScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // ------------------------------------------------
             // CONTINUE BUTTON
-            // ------------------------------------------------
-
             Button(
                 onClick = onContinue,
                 modifier = Modifier
@@ -703,135 +651,44 @@ fun AnalysisResultsScreen(
         }
     }
 }
-
-// ============================================================
-// RESULT MARKER
-// ============================================================
-
 @Composable
-fun ResultMarker() {
-
-    val teal = Color(0xFF00EFA3)
-
-    Box(
-        modifier = Modifier
-            .size(27.dp)
-            .border(
-                width = 1.dp,
-                color = teal.copy(alpha = 0.75f),
-                shape = RoundedCornerShape(5.dp)
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-
-        Box(
-            modifier = Modifier
-                .size(5.dp)
-                .background(
-                    teal,
-                    CircleShape
-                )
-        )
-    }
+ fun WorkflowProgress(
+    currentStage: Int,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.material3.LinearProgressIndicator(
+        progress = { currentStage.toFloat() / 5f },
+        modifier = modifier
+            .fillMaxWidth()
+            .height(4.dp)
+            .clip(RoundedCornerShape(2.dp)),
+        color = Color(0xFF00D9FF),
+        trackColor = Color.White.copy(alpha = 0.1f)
+    )
 }
-
-// ============================================================
-// SUMMARY ROW
-// ============================================================
 
 @Composable
 fun SummaryRow(
     label: String,
     value: String
 ) {
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-
         Text(
             text = label,
             color = Color(0xFF8EA6B8),
-            fontSize = 10.sp
+            fontSize = 12.sp
         )
-
         Text(
             text = value,
             color = Color.White,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
         )
-    }
-}
-
-@Composable
-fun WorkflowProgress(
-    currentStage: Int
-) {
-
-    val cyan = Color(0xFF00D9FF)
-    val teal = Color(0xFF00EFA3)
-    val muted = Color(0xFF284354)
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-
-        for (stage in 1..8) {
-
-            // Stage dot
-            Box(
-                modifier = Modifier
-                    .size(
-                        if (stage == currentStage) {
-                            12.dp
-                        } else {
-                            8.dp
-                        }
-                    )
-                    .then(
-                        if (stage == currentStage) {
-                            Modifier.shadow(
-                                elevation = 8.dp,
-                                shape = CircleShape,
-                                ambientColor = cyan,
-                                spotColor = cyan
-                            )
-                        } else {
-                            Modifier
-                        }
-                    )
-                    .background(
-                        color = when {
-                            stage < currentStage -> teal
-                            stage == currentStage -> cyan
-                            else -> muted
-                        },
-                        shape = CircleShape
-                    )
-            )
-
-            // Connecting line
-            if (stage < 8) {
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(3.dp)
-                        .background(
-                            color = if (stage < currentStage) {
-                                teal
-                            } else {
-                                muted
-                            },
-                            shape = RoundedCornerShape(50)
-                        )
-                )
-            }
-        }
     }
 }

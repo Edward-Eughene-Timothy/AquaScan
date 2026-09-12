@@ -57,7 +57,6 @@ fun SamplingScreen(
     val fieldColor = Color(0xFF0D2438)
 
     val cyan = Color(0xFF00D9FF)
-    val brightCyan = Color(0xFF18CFFF)
     val teal = Color(0xFF00EFA3)
     val white = Color.White
     val mutedText = Color(0xFF8EA6B8)
@@ -65,6 +64,10 @@ fun SamplingScreen(
     // ------------------------------------------------
     // STATE
     // ------------------------------------------------
+
+    var sampleId by remember {
+        mutableStateOf("MP-${System.currentTimeMillis().toString().takeLast(4)}")
+    }
 
     var source by remember {
         mutableStateOf("")
@@ -247,28 +250,14 @@ fun SamplingScreen(
 
                 Spacer(modifier = Modifier.height(7.dp))
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .background(
-                                teal,
-                                CircleShape
-                            )
-                    )
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Text(
-                        text = "MP-001",
-                        color = cyan,
-                        fontSize = 21.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                OutlinedTextField(
+                    value = sampleId,
+                    onValueChange = { sampleId = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("e.g. MP-001", color = mutedText) },
+                    shape = RoundedCornerShape(12.dp)
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -372,9 +361,7 @@ fun SamplingScreen(
                 OutlinedTextField(
                     value = volume,
                     onValueChange = {
-                        if (it.all { character ->
-                                character.isDigit()
-                            }) {
+                        if (it.all { character -> character.isDigit() }) {
                             volume = it
                         }
                     },
@@ -562,9 +549,14 @@ fun SamplingScreen(
 
                 Button(
                     onClick = {
+                        val finalSampleId = if (sampleId.isBlank()) {
+                            "MP-${System.currentTimeMillis().toString().takeLast(4)}"
+                        } else {
+                            sampleId.trim()
+                        }
 
                         val session = AnalysisSession(
-                            sampleId = "MP-001",
+                            sampleId = finalSampleId,
                             source = if (source.isEmpty()) {
                                 "Not specified"
                             } else {

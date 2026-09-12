@@ -1,5 +1,9 @@
 package com.mirai.microplasticdetector.ui
 
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -22,28 +26,99 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.exifinterface.media.ExifInterface
+import com.mirai.microplasticdetector.data.AnalysisReportEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.util.Locale
 
 @Composable
 fun AnalysisReportDetailScreen(
-    report: AnalysisReportPreview,
-    onBack: () -> Unit
+    report: AnalysisReportEntity,
+    onBack: () -> Unit,
+    onDeleteReport: (AnalysisReportEntity) -> Unit
 ) {
+    val context = LocalContext.current
+
     val backgroundTop = Color(0xFF031827)
     val backgroundBottom = Color(0xFF051F31)
     val cardColor = Color(0xFF0A1B2B)
 
-    val cyan = Color(0xFF00D9FF)
+    val cyan = Color(0xFF42F3A7)
     val teal = Color(0xFF00EFA3)
     val white = Color.White
     val mutedText = Color(0xFF8EA6B8)
+    val deleteRed = Color(0xFFFA4C4C)
+
+    val polymerCounts = mapOf(
+        "ABS" to report.countABS,
+        "Nylon" to report.countNylon,
+        "PE" to report.countPE,
+        "PET" to report.countPET,
+        "PS" to report.countPS,
+        "PVC" to report.countPVC
+    )
+
+    var imageBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+    // Load actual image from saved Uri String and apply EXIF orientation correction
+    LaunchedEffect(report.imageUriString) {
+        if (!report.imageUriString.isNullOrEmpty()) {
+            imageBitmap = withContext(Dispatchers.IO) {
+                try {
+                    val uri = Uri.parse(report.imageUriString)
+
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    val rawBitmap = inputStream?.use { BitmapFactory.decodeStream(it) }
+
+                    if (rawBitmap != null) {
+                        val exifStream = context.contentResolver.openInputStream(uri)
+                        val orientation = exifStream?.use { stream ->
+                            val exif = ExifInterface(stream)
+                            exif.getAttributeInt(
+                                ExifInterface.TAG_ORIENTATION,
+                                ExifInterface.ORIENTATION_NORMAL
+                            )
+                        } ?: ExifInterface.ORIENTATION_NORMAL
+
+                        val matrix = Matrix()
+                        when (orientation) {
+                            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+                            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+                            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+                        }
+
+                        if (orientation != ExifInterface.ORIENTATION_NORMAL && orientation != ExifInterface.ORIENTATION_UNDEFINED) {
+                            android.graphics.Bitmap.createBitmap(
+                                rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true
+                            )
+                        } else {
+                            rawBitmap
+                        }
+                    } else null
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    null
+                }
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -60,6 +135,7 @@ fun AnalysisReportDetailScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp, vertical = 18.dp)
         ) {
+            // TOP BAR
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -131,6 +207,7 @@ fun AnalysisReportDetailScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            // STATUS BANNER
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -150,13 +227,13 @@ fun AnalysisReportDetailScreen(
                         letterSpacing = 1.sp
                     )
                     Text(
-                        text = "Saved analysis report",
+                        text = "Saved SQLite report record",
                         color = mutedText,
                         fontSize = 10.sp
                     )
                 }
                 Text(
-                    text = "AI ANALYSIS",
+                    text = "AI ARCHIVE",
                     color = cyan,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
@@ -165,6 +242,7 @@ fun AnalysisReportDetailScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
+            // SAMPLE INFORMATION CARD
             ReportDetailCard(title = "SAMPLE INFORMATION") {
                 DetailRow(label = "Report Code", value = report.reportCode)
                 DetailRow(label = "Sample ID", value = report.sampleId)
@@ -174,11 +252,38 @@ fun AnalysisReportDetailScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
+            // SEPARATE DEDICATED COLLECTION NOTES CARD
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(cardColor, RoundedCornerShape(17.dp))
+                    .border(1.dp, cyan.copy(alpha = 0.16f), RoundedCornerShape(17.dp))
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "COLLECTION NOTES",
+                    color = cyan,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = if (report.notes.isNotBlank()) report.notes else "No observations recorded for this sample.",
+                    color = if (report.notes.isNotBlank()) white else mutedText,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(15.dp))
+
+            // CORE METRICS
             ReportDetailCard(title = "DETECTION RESULTS") {
                 DetailRow(label = "Objects Detected", value = report.objectCount.toString())
                 DetailRow(
                     label = "Average Confidence",
-                    value = String.format("%.1f%%", report.confidence)
+                    value = String.format(Locale.getDefault(), "%.1f%%", report.averageConfidence)
                 )
                 DetailRow(
                     label = "Detection Status",
@@ -188,6 +293,7 @@ fun AnalysisReportDetailScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
+            // IMAGE VISUALIZATION (ROTATION FIXED)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -208,65 +314,137 @@ fun AnalysisReportDetailScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp)
+                        .height(220.dp)
                         .background(Color(0xFF020A12), RoundedCornerShape(14.dp))
                         .border(1.dp, cyan.copy(alpha = 0.15f), RoundedCornerShape(14.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "IMAGE ARCHIVE",
-                            color = cyan,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.3.sp
+                    if (imageBitmap != null) {
+                        Image(
+                            bitmap = imageBitmap!!.asImageBitmap(),
+                            contentDescription = "Archived Microscopic Image",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(14.dp),
+                            contentScale = ContentScale.Crop
                         )
-                        Spacer(modifier = Modifier.height(5.dp))
-                        Text(
-                            text = "Stored analysis image will appear here",
-                            color = mutedText,
-                            fontSize = 10.sp,
-                            textAlign = TextAlign.Center
-                        )
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "IMAGE ARCHIVE",
+                                color = cyan,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.3.sp
+                            )
+                            Spacer(modifier = Modifier.height(5.dp))
+                            Text(
+                                text = "No image available or file unreadable",
+                                color = mutedText,
+                                fontSize = 10.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            ReportDetailCard(title = "REPORT SCOPE") {
+            // MATERIAL BREAKDOWN CARD
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(cardColor, RoundedCornerShape(17.dp))
+                    .border(1.dp, teal.copy(alpha = 0.18f), RoundedCornerShape(17.dp))
+                    .padding(16.dp)
+            ) {
                 Text(
-                    text = "This report contains the recorded sample information and results produced during the analysis stage.",
+                    text = "MATERIAL BREAKDOWN",
                     color = mutedText,
-                    fontSize = 11.sp,
-                    lineHeight = 17.sp
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Filtration information will be added in a future workflow stage.",
-                    color = mutedText.copy(alpha = 0.75f),
-                    fontSize = 10.sp,
-                    lineHeight = 15.sp
-                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                polymerCounts.forEach { (material, count) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .background(
+                                    if (count > 0) teal else mutedText.copy(alpha = 0.35f),
+                                    CircleShape
+                                )
+                        )
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Text(
+                            text = material,
+                            color = white,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Text(
+                            text = "$count detected",
+                            color = if (count > 0) teal else mutedText,
+                            fontSize = 10.sp,
+                            fontWeight = if (count > 0) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            Button(
-                onClick = onBack,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = cyan)
+            // ACTION BUTTONS
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "BACK TO REPORTS",
-                    color = Color.Black,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                Button(
+                    onClick = { onDeleteReport(report) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = deleteRed)
+                ) {
+                    Text(
+                        text = "DELETE REPORT",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp
+                    )
+                }
+
+                Button(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = cyan)
+                ) {
+                    Text(
+                        text = "BACK TO REPORTS",
+                        color = Color.Black,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))

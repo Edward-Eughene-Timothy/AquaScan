@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -13,23 +14,23 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.mirai.microplasticdetector.ui.theme.MicroplasticDetectorTheme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.mirai.microplasticdetector.data.AnalysisReportEntity
+import com.mirai.microplasticdetector.data.AppDatabase
 import com.mirai.microplasticdetector.ml.YOLO11Detector
 import com.mirai.microplasticdetector.models.AnalysisSession
 import com.mirai.microplasticdetector.models.DetectionResult
 import com.mirai.microplasticdetector.ui.AnalysisHistoryScreen
-import com.mirai.microplasticdetector.ui.AnalysisReportPreview
+import com.mirai.microplasticdetector.ui.AnalysisReportDetailScreen
+import com.mirai.microplasticdetector.ui.AnalysisResultsScreen
 import com.mirai.microplasticdetector.ui.DetectionScreen
 import com.mirai.microplasticdetector.ui.HomeScreen
 import com.mirai.microplasticdetector.ui.ImageCaptureScreen
 import com.mirai.microplasticdetector.ui.PreparationScreen
 import com.mirai.microplasticdetector.ui.SamplingScreen
-import com.mirai.microplasticdetector.ui.AnalysisReportDetailScreen
-import com.mirai.microplasticdetector.ui.AnalysisResultsScreen
-
+import com.mirai.microplasticdetector.ui.theme.MicroplasticDetectorTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private lateinit var yoloDetector: YOLO11Detector
@@ -41,15 +42,17 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
+            val database = remember { AppDatabase.getDatabase(applicationContext) }
+            val reportDao = database.analysisReportDao()
+
+            val reportsList by reportDao.getAllReports().collectAsState(initial = emptyList())
+            var selectedReport by remember { mutableStateOf<AnalysisReportEntity?>(null) }
+
             MicroplasticDetectorTheme {
                 val navController = rememberNavController()
 
                 var currentSession by remember {
                     mutableStateOf<AnalysisSession?>(null)
-                }
-
-                var selectedReport by remember {
-                    mutableStateOf<AnalysisReportPreview?>(null)
                 }
 
                 NavHost(
@@ -195,15 +198,40 @@ class MainActivity : ComponentActivity() {
                                     session = session,
                                     detectionResult = result,
                                     imageUri = session.imageUri,
-                                    onBack = {
-                                        navController.popBackStack()
-                                    },
+                                    onBack = { navController.popBackStack() },
                                     onSaveReport = {
-                                        // TODO: Connect Room Database persistence here
-                                        navController.navigate("analysis_history")
+                                        lifecycleScope.launch(Dispatchers.IO) {
+                                            val polymers = result.polymerCounts
+
+                                            val entity = AnalysisReportEntity(
+                                                reportCode = "RPT-${System.currentTimeMillis().toString().takeLast(4)}",
+                                                sampleId = session.sampleId,
+                                                source = session.source,
+                                                volumeMl = session.volumeMl,
+                                                notes = session.notes,
+                                                objectCount = result.objectCount,
+                                                averageConfidence = result.averageConfidence,
+                                                countABS = polymers["ABS"] ?: 0,
+                                                countNylon = polymers["Nylon"] ?: 0,
+                                                countPE = polymers["PE"] ?: 0,
+                                                countPET = polymers["PET"] ?: 0,
+                                                countPS = polymers["PS"] ?: 0,
+                                                countPVC = polymers["PVC"] ?: 0,
+                                                imageUriString = session.imageUri?.toString()
+                                            )
+
+                                            reportDao.insertReport(entity)
+
+                                            withContext(Dispatchers.Main) {
+                                                navController.navigate("analysis_history")
+                                            }
+                                        }
                                     },
                                     onContinue = {
-                                        // Next stage workflow hook
+                                        currentSession = null
+                                        navController.navigate("home") {
+                                            popUpTo("home") { inclusive = true }
+                                        }
                                     }
                                 )
                             }
@@ -212,12 +240,9 @@ class MainActivity : ComponentActivity() {
 
                     composable("analysis_history") {
                         AnalysisHistoryScreen(
-                            onBack = {
-                                navController.popBackStack()
-                            },
-                            onBeginAnalysis = {
-                                navController.navigate("sampling")
-                            },
+                            reports = reportsList,
+                            onBack = { navController.popBackStack() },
+                            onBeginAnalysis = { navController.navigate("sampling") },
                             onReportClick = { report ->
                                 selectedReport = report
                                 navController.navigate("analysis_report_detail")
@@ -229,8 +254,15 @@ class MainActivity : ComponentActivity() {
                         selectedReport?.let { report ->
                             AnalysisReportDetailScreen(
                                 report = report,
-                                onBack = {
-                                    navController.popBackStack()
+                                onBack = { navController.popBackStack() },
+                                onDeleteReport = { reportToDelete ->
+                                    lifecycleScope.launch(Dispatchers.IO) {
+                                        reportDao.deleteReport(reportToDelete)
+                                        withContext(Dispatchers.Main) {
+                                            selectedReport = null
+                                            navController.popBackStack()
+                                        }
+                                    }
                                 }
                             )
                         }
