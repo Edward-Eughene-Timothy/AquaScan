@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -293,7 +294,7 @@ fun AnalysisReportDetailScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            // IMAGE VISUALIZATION (ROTATION FIXED)
+            // IMAGE VISUALIZATION (UPDATED CONTAINER TO 315.DP HEIGHT AND FLUSH CROP)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -314,8 +315,9 @@ fun AnalysisReportDetailScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
-                        .background(Color(0xFF020A12), RoundedCornerShape(14.dp))
+                        .height(315.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF020A12))
                         .border(1.dp, cyan.copy(alpha = 0.15f), RoundedCornerShape(14.dp)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -323,9 +325,7 @@ fun AnalysisReportDetailScreen(
                         Image(
                             bitmap = imageBitmap!!.asImageBitmap(),
                             contentDescription = "Archived Microscopic Image",
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(14.dp),
+                            modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
                     } else {

@@ -242,7 +242,7 @@ fun AnalysisResultsScreen(
 
             Spacer(modifier = Modifier.height(15.dp))
 
-            // IMAGE RESULT AREA (WITH EXIF ROTATION & CROP MATCHING)
+            // IMAGE RESULT AREA (UPDATED HEIGHT TO 315.DP TO MATCH IMAGE CAPTURE SCREEN)
             var imageBitmap by remember {
                 mutableStateOf<Bitmap?>(null)
             }
@@ -290,7 +290,7 @@ fun AnalysisResultsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(245.dp)
+                    .height(315.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color(0xFF020A12))
                     .border(
@@ -651,8 +651,9 @@ fun AnalysisResultsScreen(
         }
     }
 }
+
 @Composable
- fun WorkflowProgress(
+fun WorkflowProgress(
     currentStage: Int,
     modifier: Modifier = Modifier
 ) {
