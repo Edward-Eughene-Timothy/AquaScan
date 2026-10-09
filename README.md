@@ -1,6 +1,5 @@
 
 
-```markdown
 # AquaScan
 
 **AI-powered Microplastic Detection System**
