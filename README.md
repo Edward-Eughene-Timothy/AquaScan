@@ -1,10 +1,4 @@
-I've reviewed the repository thoroughly. **AquaScan** is a microplastic detection system with:
 
-- Python tooling for building/validating a YOLO dataset of 6 microplastic classes (ABS, Nylon, PE, PET, PS, PVC)
-- Training scripts for YOLOv8n, YOLO11n, and YOLO26n
-- An Android app (`com.mirai.microplasticdetector`) built with Jetpack Compose, CameraX, ONNX Runtime, and Room that runs on-device inference using `best.onnx`
-
-Here’s a complete `README.md` you can copy into the root of the repository:
 
 ```markdown
 # AquaScan
